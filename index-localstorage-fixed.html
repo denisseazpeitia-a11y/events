@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Plan de Trabajo · Eventos</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #f5f0e8; font-family: 'DM Sans', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #c5b99a; border-radius: 3px; }
+    @keyframes slideDown { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeIn    { from{opacity:0} to{opacity:1} }
+    input, select, textarea { font-family: 'DM Sans', sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const PALETTE = [
+      { bg:"#e8392a", light:"#fde8e6" }, { bg:"#1a56a0", light:"#e2edf8" },
+      { bg:"#2a8c4a", light:"#e3f5e8" }, { bg:"#c47d0e", light:"#fdf3e0" },
+      { bg:"#6b3fa0", light:"#f0e8fc" }, { bg:"#0e8c7a", light:"#e0f8f4" },
+      { bg:"#c44b8a", light:"#fce8f4" }, { bg:"#5c4a1e", light:"#f5efe0" },
+    ];
+    const CATEGORIES = ["Ceremonial","Logística","Técnico","Contenido","Comunicación","VIP","Otro"];
+    const STATUS_CFG = {
+      "pendiente":   { label:"Pendiente",   color:"#8a7a6a" },
+      "en-progreso": { label:"En progreso", color:"#1a56a0" },
+      "completado":  { label:"Completado",  color:"#2a8c4a" },
+      "bloqueado":   { label:"Bloqueado",   color:"#e8392a" },
+    };
+    const CAT_COLORS = {
+      "Ceremonial":"#e8392a","Logística":"#1a56a0","Técnico":"#6b3fa0",
+      "Contenido":"#2a8c4a","Comunicación":"#c47d0e","VIP":"#c44b8a","Otro":"#8a7a6a",
+    };
+    const TAB_ACCENT = ["#e8392a","#1a56a0","#2a8c4a","#c47d0e","#6b3fa0","#0e8c7a","#c44b8a"];
+
+    const timeToMin = (t) => { const [h,m]=t.split(":").map(Number); return h*60+m; };
+    const fmt12     = (t) => { const [h,m]=t.split(":"); const hr=+h; return `${hr>12?hr-12:hr||12}:${m} ${hr>=12?"pm":"am"}`; };
+
+    const SEED = {
+      id: 1,
+      info: { name:"Congreso Anual de Innovación", date:"2026-05-15", venue:"Centro de Convenciones WTC, CDMX" },
+      people: [
+        { id:1, name:"Ana García",   role:"Coordinadora General" },
+        { id:2, name:"Carlos López", role:"Logística" },
+        { id:3, name:"María Ramos",  role:"Comunicación" },
+        { id:4, name:"Luis Torres",  role:"Tecnología" },
+      ],
+      tasks: [
+        { id:1, title:"Apertura y bienvenida",       personId:1, startTime:"08:00", endTime:"08:30", category:"Ceremonial",   status:"pendiente",   specs:"Preparar discurso, revisar sonido, coordinar con AV.",          location:"Auditorio Principal" },
+        { id:2, title:"Registro de asistentes",      personId:2, startTime:"07:00", endTime:"09:00", category:"Logística",    status:"pendiente",   specs:"Credenciales impresas, scanner QR, lista en tablet.",           location:"Lobby de entrada" },
+        { id:3, title:"Prueba técnica de equipo AV", personId:4, startTime:"06:00", endTime:"07:30", category:"Técnico",      status:"completado",  specs:"Verificar proyectores, micrófonos y enlace de video.",          location:"Auditorio Principal" },
+        { id:4, title:"Conferencia magistral",       personId:1, startTime:"09:00", endTime:"10:30", category:"Contenido",    status:"pendiente",   specs:"Presentador confirmado. Tener agua y puntero.",                 location:"Auditorio Principal" },
+        { id:5, title:"Cobertura en redes sociales", personId:3, startTime:"08:00", endTime:"18:00", category:"Comunicación", status:"en-progreso", specs:"Publicar cada 30 min en IG y Twitter. Hashtag: #CongresoCDMX.",location:"Todo el evento" },
+        { id:6, title:"Montaje de stands",           personId:2, startTime:"05:00", endTime:"07:00", category:"Logística",    status:"completado",  specs:"12 stands. Plano adjunto. Llaves con seguridad.",               location:"Salón B" },
+        { id:7, title:"Soporte técnico en vivo",     personId:4, startTime:"08:00", endTime:"20:00", category:"Técnico",      status:"pendiente",   specs:"Guardia permanente. Radio canal 3.",                            location:"Cabina técnica" },
+        { id:8, title:"Coordinación de catering",    personId:2, startTime:"10:30", endTime:"11:30", category:"Logística",    status:"pendiente",   specs:"Coffee break para 300 personas. Confirmado con proveedor.",    location:"Área de descanso" },
+        { id:9, title:"Nota de prensa en vivo",      personId:3, startTime:"11:00", endTime:"12:00", category:"Comunicación", status:"pendiente",   specs:"Entrevistar a 3 ponentes. Enviar por correo a medios.",         location:"Sala de prensa" },
+      ],
+    };
+
+    function App() {
+      const STORAGE_KEY = "planTrabajoEventos_v2";
+
+      const [events, setEvents] = useState(() => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return [SEED];
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed.events) && parsed.events.length ? parsed.events : [SEED];
+        } catch (e) {
+          return [SEED];
+        }
+      });
+
+      const [activeId, setActiveId] = useState(() => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return SEED.id;
+          const parsed = JSON.parse(raw);
+          return parsed.activeId || (Array.isArray(parsed.events) && parsed.events[0]?.id) || SEED.id;
+        } catch (e) {
+          return SEED.id;
+        }
+      });
+
+      const [showNewEv,  setShowNewEv]  = useState(false);
+      const [confirmDel, setConfirmDel] = useState(null);
+
+      useEffect(() => {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ events, activeId }));
+        } catch (e) {}
+      }, [events, activeId]);
+
+      const active = events.find(e=>e.id===activeId) || events[0];
+      const updateEvent = (updated) => setEvents(prev => prev.map(e => e.id===updated.id ? updated : e));
+      const addEvent = (info) => {
+        const id = Date.now();
+        setEvents(prev => [...prev, { id, info, people:[], tasks:[] }]);
+        setActiveId(id); setShowNewEv(false);
+      };
+      const deleteEvent = (id) => {
+        const remaining = events.filter(e=>e.id!==id);
+        setEvents(remaining);
+        if (activeId===id) setActiveId(remaining[0]?.id || null);
+        setConfirmDel(null);
+      };
+
+      if (!active) return (
+        <div style={{...S.root,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,minHeight:"100vh"}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:32,color:"#8a7a6a"}}>Sin eventos</div>
+          <button style={{...S.addBtn,background:"#e8392a"}} onClick={()=>setShowNewEv(true)}>+ Crear primer evento</button>
+          {showNewEv && <EventModal event={null} onSave={addEvent} onClose={()=>setShowNewEv(false)}/>}
+        </div>
+      );
+
+      return (
+        <div style={S.root}>
+          <div style={S.tabsBar}>
+            <div style={S.tabsScroll}>
+              {events.map((ev, idx) => {
+                const accent = TAB_ACCENT[idx % TAB_ACCENT.length];
+                const isActive = ev.id === activeId;
+                const done = ev.tasks.filter(t=>t.status==="completado").length;
+                const total = ev.tasks.length;
+                return (
+                  <div key={ev.id} style={{...S.tab, borderBottom: isActive?`3px solid ${accent}`:"3px solid transparent", background: isActive?"#fff":"transparent", color: isActive?"#1e1812":"#8a7a6a"}} onClick={() => setActiveId(ev.id)}>
+                    <div style={{...S.tabDot, background: accent}}/>
+                    <div style={S.tabContent}>
+                      <span style={S.tabName}>{ev.info.name}</span>
+                      <span style={S.tabMeta}>
+                        {ev.info.date ? new Date(ev.info.date+"T12:00").toLocaleDateString("es-MX",{day:"numeric",month:"short"}) : "Sin fecha"}
+                        {total > 0 && <span style={{color:accent,marginLeft:6,fontWeight:700}}>{done}/{total}</span>}
+                      </span>
+                    </div>
+                    {isActive && events.length > 1 && (
+                      <button style={S.tabClose} onClick={e=>{e.stopPropagation();setConfirmDel(ev.id);}}>✕</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <button style={S.newTabBtn} onClick={()=>setShowNewEv(true)}>＋ Evento</button>
+          </div>
+          <EventWorkPlan key={active.id} event={active} accent={TAB_ACCENT[events.findIndex(e=>e.id===active.id) % TAB_ACCENT.length]} onChange={updateEvent}/>
+          {showNewEv && <EventModal event={null} onSave={addEvent} onClose={()=>setShowNewEv(false)}/>}
+          {confirmDel && <ConfirmModal message={`¿Eliminar "${events.find(e=>e.id===confirmDel)?.info.name}"? Esto eliminará todas sus actividades y personas.`} onConfirm={()=>deleteEvent(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
+        </div>
+      );
+    }
+
+    function EventWorkPlan({ event, accent, onChange }) {
+      const { info, people, tasks } = event;
+      const [view, setView] = useState("timeline");
+      const [modal, setModal] = useState(null);
+      const [editing, setEditing] = useState(null);
+      const [filter, setFilter] = useState({person:"all",category:"all",status:"all"});
+      const [detailTask, setDetailTask] = useState(null);
+
+      const update = (patch) => onChange({ ...event, ...patch });
+      const personColor = (pid) => { const idx=people.findIndex(p=>p.id===pid); return PALETTE[idx>=0?idx%PALETTE.length:0]; };
+      const filtered = tasks.filter(t => (filter.person==="all"||t.personId===+filter.person) && (filter.category==="all"||t.category===filter.category) && (filter.status==="all"||t.status===filter.status));
+      const stats = { total:tasks.length, completadas:tasks.filter(t=>t.status==="completado").length, enProgreso:tasks.filter(t=>t.status==="en-progreso").length, pendientes:tasks.filter(t=>t.status==="pendiente").length };
+
+      const saveTask = (t) => {
+        const norm = { ...t, personId: t.personId ? Number(t.personId) : null };
+        update({ tasks: norm.id ? tasks.map(x=>x.id===norm.id?norm:x) : [...tasks,{...norm,id:Date.now()}] });
+        setModal(null); setEditing(null);
+      };
+      const deleteTask = (tid) => { update({ tasks: tasks.filter(t=>t.id!==tid) }); setDetailTask(null); };
+      const cycleStatus = (tid) => { const order=["pendiente","en-progreso","completado","bloqueado"]; update({ tasks: tasks.map(t=>t.id!==tid?t:{...t,status:order[(order.indexOf(t.status)+1)%order.length]}) }); };
+      const savePerson = (p) => { const norm={...p,id:p.id||Date.now()}; update({ people: p.id?people.map(x=>x.id===p.id?norm:x):[...people,norm] }); setModal(null); setEditing(null); };
+      const deletePerson = (pid) => update({ people:people.filter(p=>p.id!==pid), tasks:tasks.map(t=>t.personId===pid?{...t,personId:null}:t) });
+      const pct = stats.total ? Math.round(stats.completadas/stats.total*100) : 0;
+
+      return (
+        <>
+          <div style={{...S.banner, borderTop:`4px solid ${accent}`}}>
+            <div style={S.bannerInner}>
+              <div style={S.bannerLeft}>
+                <div style={{...S.eventTag, color:accent}}>PLAN DE TRABAJO · EVENTO</div>
+                <h1 style={S.eventTitle} onClick={()=>setModal("event")}>{info.name}</h1>
+                <div style={S.eventMeta}>
+                  {info.date && <span>📅 {new Date(info.date+"T12:00").toLocaleDateString("es-MX",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>}
+                  {info.date && info.venue && <span style={{margin:"0 12px",opacity:0.3}}>|</span>}
+                  {info.venue && <span>📍 {info.venue}</span>}
+                </div>
+              </div>
+              <div style={S.bannerStats}>
+                {[["ACTIVIDADES",stats.total,"#fff"],["COMPLETADAS",stats.completadas,"#a8e6bc"],["EN PROGRESO",stats.enProgreso,"#a8c8f0"],["PENDIENTES",stats.pendientes,"#f5c6a0"]].map(([l,v,c])=>(
+                  <div key={l} style={S.statPill}><span style={{...S.statNum,color:c}}>{v}</span><span style={S.statLbl}>{l}</span></div>
+                ))}
+              </div>
+            </div>
+            <div style={S.overallBar}><div style={{...S.overallFill,width:`${pct}%`,background:`linear-gradient(90deg,${accent},${accent}bb)`}}/></div>
+          </div>
+
+          <div style={S.toolbar}>
+            <div style={S.toolbarLeft}>
+              {["timeline","board","list"].map(v=>(
+                <button key={v} style={{...S.viewBtn,...(view===v?{...S.viewBtnActive,background:accent,borderColor:accent}:{})}} onClick={()=>setView(v)}>
+                  {v==="timeline"?"⏱ Cronograma":v==="board"?"👥 Por persona":"☰ Lista"}
+                </button>
+              ))}
+            </div>
+            <div style={S.toolbarRight}>
+              <select style={S.sel} value={filter.person} onChange={e=>setFilter(f=>({...f,person:e.target.value}))}>
+                <option value="all">Todas las personas</option>
+                {people.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <select style={S.sel} value={filter.category} onChange={e=>setFilter(f=>({...f,category:e.target.value}))}>
+                <option value="all">Todas las áreas</option>
+                {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
+              <select style={S.sel} value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))}>
+                <option value="all">Todos los estados</option>
+                {Object.entries(STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+              </select>
+              <button style={{...S.addBtn,background:accent}} onClick={()=>setModal("task")}>+ Actividad</button>
+              <button style={S.addBtnSec} onClick={()=>setModal("person")}>+ Persona</button>
+            </div>
+          </div>
+
+          <div style={S.peopleRow}>
+            {people.length===0 && <span style={{fontSize:13,color:"#c5b99a"}}>Agrega personas con el botón "+ Persona"</span>}
+            {people.map((p,i)=>{ const col=PALETTE[i%PALETTE.length]; const count=tasks.filter(t=>t.personId===p.id).length; return (
+              <div key={p.id} style={{...S.personChip,borderColor:col.bg}}>
+                <div style={{...S.avatar,background:col.bg}}>{p.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div>
+                <div><div style={S.chipName}>{p.name}</div><div style={S.chipRole}>{p.role} · {count} actividad{count!==1?"es":""}</div></div>
+                <button style={S.chipEdit} onClick={()=>{setEditing(p);setModal("person");}}>✎</button>
+              </div>
+            );})}
+          </div>
+
+          <div style={S.mainArea}>
+            {view==="timeline" && <TimelineView tasks={filtered} people={people} personColor={personColor} onDetail={setDetailTask} onStatus={cycleStatus}/>}
+            {view==="board"    && <BoardView    tasks={filtered} people={people} personColor={personColor} onDetail={setDetailTask} onStatus={cycleStatus}/>}
+            {view==="list"     && <ListView     tasks={filtered} people={people} personColor={personColor} onDetail={setDetailTask} onStatus={cycleStatus}/>}
+            {tasks.length===0 && <div style={S.emptyState}><div style={S.emptyIcon}>📋</div><div style={S.emptyTitle}>Sin actividades aún</div><div style={S.emptySub}>Primero agrega personas, luego crea actividades con "+ Actividad"</div></div>}
+          </div>
+
+          {modal==="task"   && <TaskModal   task={editing}   people={people} onSave={saveTask}   onClose={()=>{setModal(null);setEditing(null);}}/>}
+          {modal==="person" && <PersonModal person={editing} onSave={savePerson} onDelete={deletePerson} onClose={()=>{setModal(null);setEditing(null);}}/>}
+          {modal==="event"  && <EventModal  event={info} onSave={i=>{update({info:i});setModal(null);}} onClose={()=>setModal(null)}/>}
+          {detailTask && <DetailModal task={detailTask} person={people.find(p=>p.id===detailTask.personId)} personColor={personColor(detailTask.personId)} onEdit={()=>{setEditing(detailTask);setDetailTask(null);setModal("task");}} onDelete={()=>deleteTask(detailTask.id)} onClose={()=>setDetailTask(null)}/>}
+        </>
+      );
+    }
+
+    function TimelineView({ tasks, people, personColor, onDetail }) {
+      const hours=Array.from({length:19},(_,i)=>i+4);
+      const sorted=[...tasks].sort((a,b)=>timeToMin(a.startTime)-timeToMin(b.startTime));
+      const MIN_START=4*60, TOTAL=19*60;
+      const pct=(t)=>((timeToMin(t)-MIN_START)/TOTAL)*100;
+      const wid=(s,e)=>Math.max(((timeToMin(e)-timeToMin(s))/TOTAL)*100,1.5);
+      const rows=[];
+      sorted.forEach(task=>{ const s=timeToMin(task.startTime),e=timeToMin(task.endTime); let placed=false; for(const row of rows){const last=row[row.length-1];if(timeToMin(last.endTime)<=s){row.push(task);placed=true;break;}} if(!placed) rows.push([task]); });
+      if(!tasks.length) return null;
+      return (
+        <div style={{padding:"0 24px 40px"}}>
+          <div style={S.timelineWrap}>
+            <div style={S.hourRow}>
+              {hours.map(h=><div key={h} style={{...S.hourMark,left:`${((h*60-MIN_START)/TOTAL)*100}%`}}><span style={S.hourLabel}>{fmt12(`${String(h).padStart(2,"0")}:00`)}</span><div style={S.hourLine}/></div>)}
+            </div>
+            {rows.map((row,ri)=>(
+              <div key={ri} style={S.taskRow}>
+                {row.map(task=>{ const col=personColor(task.personId); const sc=STATUS_CFG[task.status]||STATUS_CFG.pendiente; return (
+                  <div key={task.id} style={{...S.taskBlock,left:`${pct(task.startTime)}%`,width:`${wid(task.startTime,task.endTime)}%`,background:col.light,borderLeft:`4px solid ${col.bg}`,opacity:task.status==="completado"?0.7:1}} onClick={()=>onDetail(task)}>
+                    <div style={{...S.taskBlockTitle,color:col.bg}}>{task.title}</div>
+                    <div style={S.taskBlockMeta}>{people.find(p=>p.id===task.personId)?.name.split(" ")[0]} · {fmt12(task.startTime)}<span style={{...S.statusDot,background:sc.color}}/></div>
+                    {task.status==="completado"&&<div style={S.checkMark}>✓</div>}
+                  </div>
+                );})}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function BoardView({ tasks, people, personColor, onDetail, onStatus }) {
+      if(!people.length) return null;
+      return (
+        <div style={S.boardWrap}>
+          {people.map((person,i)=>{ const col=PALETTE[i%PALETTE.length]; const myTasks=[...tasks.filter(t=>t.personId===person.id)].sort((a,b)=>timeToMin(a.startTime)-timeToMin(b.startTime)); return (
+            <div key={person.id} style={S.boardCol}>
+              <div style={{...S.boardHeader,background:col.bg}}>
+                <div style={S.boardAvatar}>{person.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div>
+                <div><div style={S.boardName}>{person.name}</div><div style={S.boardRole}>{person.role}</div></div>
+                <div style={S.boardCount}>{myTasks.length}</div>
+              </div>
+              <div style={S.boardCards}>
+                {!myTasks.length&&<div style={S.emptyCol}>Sin actividades asignadas</div>}
+                {myTasks.map(task=>{ const sc=STATUS_CFG[task.status]||STATUS_CFG.pendiente; return (
+                  <div key={task.id} style={{...S.boardCard,borderTop:`3px solid ${CAT_COLORS[task.category]||"#8a7a6a"}`}} onClick={()=>onDetail(task)}>
+                    <div style={S.boardCardTitle}>{task.title}</div>
+                    <div style={S.boardCardTime}>🕐 {fmt12(task.startTime)} – {fmt12(task.endTime)}</div>
+                    {task.location&&<div style={S.boardCardLoc}>📍 {task.location}</div>}
+                    <div style={S.boardCardFoot}>
+                      <span style={{...S.catTag,background:`${CAT_COLORS[task.category]}18`,color:CAT_COLORS[task.category]||"#8a7a6a"}}>{task.category}</span>
+                      <button style={{...S.statusPill,background:sc.color+"18",color:sc.color}} onClick={e=>{e.stopPropagation();onStatus(task.id);}}>{sc.label}</button>
+                    </div>
+                  </div>
+                );})}
+              </div>
+            </div>
+          );})}
+        </div>
+      );
+    }
+
+    function ListView({ tasks, people, personColor, onDetail, onStatus }) {
+      const sorted=[...tasks].sort((a,b)=>timeToMin(a.startTime)-timeToMin(b.startTime));
+      if(!tasks.length) return null;
+      return (
+        <div style={{padding:"0 24px 40px"}}>
+          <table style={S.table}>
+            <thead><tr style={S.thead}>{["Hora","Actividad","Responsable","Área","Lugar","Estado"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {sorted.map((task,i)=>{ const person=people.find(p=>p.id===task.personId); const col=personColor(task.personId); const sc=STATUS_CFG[task.status]||STATUS_CFG.pendiente; return (
+                <tr key={task.id} style={{...S.tr,...(i%2===0?{}:{background:"#faf7f2"})}} onClick={()=>onDetail(task)}>
+                  <td style={S.td}><div style={S.timeCell}><span style={S.timeStart}>{fmt12(task.startTime)}</span><span style={S.timeSep}>↓</span><span style={S.timeEnd}>{fmt12(task.endTime)}</span></div></td>
+                  <td style={S.td}><div style={S.taskName}>{task.title}</div>{task.specs&&<div style={S.taskSpecs}>{task.specs.slice(0,60)}{task.specs.length>60?"…":""}</div>}</td>
+                  <td style={S.td}>{person?<div style={S.personCell}><div style={{...S.avatarSm,background:col.bg}}>{person.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div><span>{person.name}</span></div>:<span style={{color:"#c5b99a",fontSize:12}}>Sin asignar</span>}</td>
+                  <td style={S.td}><span style={{...S.catTag,background:`${CAT_COLORS[task.category]}18`,color:CAT_COLORS[task.category]||"#8a7a6a"}}>{task.category}</span></td>
+                  <td style={{...S.td,color:"#6a5f50",fontSize:13}}>{task.location||"—"}</td>
+                  <td style={S.td}><button style={{...S.statusPill,background:sc.color+"18",color:sc.color}} onClick={e=>{e.stopPropagation();onStatus(task.id);}}>{sc.label}</button></td>
+                </tr>
+              );})}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    function TaskModal({ task, people, onSave, onClose }) {
+      const [f,setF]=useState(task||{title:"",personId:"",startTime:"08:00",endTime:"09:00",category:"Logística",status:"pendiente",specs:"",location:""});
+      const set=(k)=>(e)=>setF(p=>({...p,[k]:e.target.value}));
+      return <Overlay onClose={onClose}><div style={S.modal}>
+        <div style={S.modalHead}><h2 style={S.modalTitle}>{task?"Editar actividad":"Nueva actividad"}</h2><button style={S.closeBtn} onClick={onClose}>✕</button></div>
+        <div style={S.formGrid}>
+          <Field label="Nombre de la actividad *" span={2}><input style={S.input} value={f.title} onChange={set("title")} placeholder="Ej: Apertura oficial"/></Field>
+          <Field label="Responsable *"><select style={S.input} value={f.personId} onChange={set("personId")}><option value="">Sin asignar</option>{people.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+          <Field label="Área"><select style={S.input} value={f.category} onChange={set("category")}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></Field>
+          <Field label="Hora inicio"><input style={S.input} type="time" value={f.startTime} onChange={set("startTime")}/></Field>
+          <Field label="Hora fin"><input style={S.input} type="time" value={f.endTime} onChange={set("endTime")}/></Field>
+          <Field label="Lugar" span={2}><input style={S.input} value={f.location} onChange={set("location")} placeholder="Ej: Auditorio Principal"/></Field>
+          <Field label="Estado"><select style={S.input} value={f.status} onChange={set("status")}>{Object.entries(STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></Field>
+          <div/>
+          <Field label="Especificaciones / Notas" span={2}><textarea style={{...S.input,height:80,resize:"vertical"}} value={f.specs} onChange={set("specs")} placeholder="Instrucciones, materiales, notas…"/></Field>
+        </div>
+        <div style={S.modalFoot}><button style={S.cancelBtn} onClick={onClose}>Cancelar</button><button style={S.saveBtn} onClick={()=>f.title&&onSave(f)}>Guardar actividad</button></div>
+      </div></Overlay>;
+    }
+
+    function PersonModal({ person, onSave, onDelete, onClose }) {
+      const [f,setF]=useState(person||{name:"",role:""});
+      const set=(k)=>(e)=>setF(p=>({...p,[k]:e.target.value}));
+      return <Overlay onClose={onClose}><div style={{...S.modal,maxWidth:420}}>
+        <div style={S.modalHead}><h2 style={S.modalTitle}>{person?"Editar persona":"Nueva persona"}</h2><button style={S.closeBtn} onClick={onClose}>✕</button></div>
+        <div style={{padding:"20px 24px",display:"flex",flexDirection:"column",gap:14}}>
+          <Field label="Nombre completo *"><input style={S.input} value={f.name} onChange={set("name")} placeholder="Ej: Laura Martínez"/></Field>
+          <Field label="Rol / Área"><input style={S.input} value={f.role} onChange={set("role")} placeholder="Ej: Coordinadora de logística"/></Field>
+        </div>
+        <div style={S.modalFoot}>
+          {person&&<button style={{...S.cancelBtn,color:"#e8392a"}} onClick={()=>{onDelete(person.id);onClose();}}>Eliminar</button>}
+          <button style={S.cancelBtn} onClick={onClose}>Cancelar</button>
+          <button style={S.saveBtn} onClick={()=>f.name&&onSave(f)}>Guardar</button>
+        </div>
+      </div></Overlay>;
+    }
+
+    function EventModal({ event, onSave, onClose }) {
+      const [f,setF]=useState(event||{name:"",date:"",venue:""});
+      const set=(k)=>(e)=>setF(p=>({...p,[k]:e.target.value}));
+      return <Overlay onClose={onClose}><div style={{...S.modal,maxWidth:440}}>
+        <div style={S.modalHead}><h2 style={S.modalTitle}>{event?"Datos del evento":"Nuevo evento"}</h2><button style={S.closeBtn} onClick={onClose}>✕</button></div>
+        <div style={{padding:"20px 24px",display:"flex",flexDirection:"column",gap:14}}>
+          <Field label="Nombre del evento *"><input style={S.input} value={f.name} onChange={set("name")} placeholder="Ej: Conferencia de Marketing 2026"/></Field>
+          <Field label="Fecha"><input style={S.input} type="date" value={f.date} onChange={set("date")}/></Field>
+          <Field label="Sede / Lugar"><input style={S.input} value={f.venue} onChange={set("venue")} placeholder="Ej: Hotel Camino Real, CDMX"/></Field>
+        </div>
+        <div style={S.modalFoot}><button style={S.cancelBtn} onClick={onClose}>Cancelar</button><button style={S.saveBtn} onClick={()=>f.name&&onSave(f)}>{event?"Guardar cambios":"Crear evento"}</button></div>
+      </div></Overlay>;
+    }
+
+    function DetailModal({ task, person, personColor, onEdit, onDelete, onClose }) {
+      const sc=STATUS_CFG[task.status]||STATUS_CFG.pendiente;
+      const dur=timeToMin(task.endTime)-timeToMin(task.startTime);
+      return <Overlay onClose={onClose}><div style={{...S.modal,maxWidth:480}}>
+        <div style={{...S.detailHeader,borderBottom:`4px solid ${personColor.bg}`}}>
+          <div style={S.detailCat(CAT_COLORS[task.category])}>{task.category}</div>
+          <h2 style={S.detailTitle}>{task.title}</h2>
+          <button style={{...S.closeBtn,position:"absolute",top:16,right:16}} onClick={onClose}>✕</button>
+        </div>
+        <div style={S.detailBody}>
+          <div style={S.detailRow}><span style={S.detailIcon}>🕐</span><div><div style={S.detailVal}>{fmt12(task.startTime)} – {fmt12(task.endTime)}</div><div style={S.detailSub}>{dur} minutos</div></div></div>
+          {person?<div style={S.detailRow}><div style={{...S.avatar,background:personColor.bg,width:36,height:36,fontSize:13,flexShrink:0}}>{person.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div><div><div style={S.detailVal}>{person.name}</div><div style={S.detailSub}>{person.role}</div></div></div>:<div style={S.detailRow}><span style={S.detailIcon}>👤</span><span style={{color:"#c5b99a",fontSize:13}}>Sin responsable</span></div>}
+          {task.location&&<div style={S.detailRow}><span style={S.detailIcon}>📍</span><div style={S.detailVal}>{task.location}</div></div>}
+          <div style={S.detailRow}><span style={S.detailIcon}>◉</span><span style={{...S.statusPill,background:sc.color+"18",color:sc.color}}>{sc.label}</span></div>
+          {task.specs&&<div style={S.specsBox}><div style={S.specsLabel}>📋 Especificaciones</div><div style={S.specsText}>{task.specs}</div></div>}
+        </div>
+        <div style={S.modalFoot}><button style={{...S.cancelBtn,color:"#e8392a"}} onClick={onDelete}>Eliminar</button><button style={S.cancelBtn} onClick={onClose}>Cerrar</button><button style={S.saveBtn} onClick={onEdit}>Editar</button></div>
+      </div></Overlay>;
+    }
+
+    function ConfirmModal({ message, onConfirm, onCancel }) {
+      return <Overlay onClose={onCancel}><div style={{...S.modal,maxWidth:400}}>
+        <div style={S.modalHead}><h2 style={{...S.modalTitle,fontSize:20}}>Confirmar eliminación</h2></div>
+        <div style={{padding:"20px 24px",fontSize:14,color:"#4a3f30",lineHeight:1.6}}>{message}</div>
+        <div style={S.modalFoot}><button style={S.cancelBtn} onClick={onCancel}>Cancelar</button><button style={{...S.saveBtn,background:"#e8392a"}} onClick={onConfirm}>Sí, eliminar</button></div>
+      </div></Overlay>;
+    }
+
+    const Overlay = ({children,onClose}) => <div style={S.overlay} onClick={onClose}><div onClick={e=>e.stopPropagation()}>{children}</div></div>;
+    const Field = ({label,children,span}) => <div style={{gridColumn:span===2?"1/-1":"auto"}}><label style={S.label}>{label}</label>{children}</div>;
+
+    const S = {
+      root:{ fontFamily:"'DM Sans',sans-serif", background:"#f5f0e8", minHeight:"100vh", color:"#2a2018" },
+      tabsBar:{ display:"flex", alignItems:"stretch", background:"#1e1812", position:"sticky", top:0, zIndex:50 },
+      tabsScroll:{ display:"flex", flex:1, overflowX:"auto" },
+      tab:{ display:"flex", alignItems:"center", gap:8, padding:"12px 18px", cursor:"pointer", whiteSpace:"nowrap", transition:"background 0.15s", minWidth:160 },
+      tabDot:{ width:8, height:8, borderRadius:"50%", flexShrink:0 },
+      tabContent:{ display:"flex", flexDirection:"column", gap:2, flex:1 },
+      tabName:{ fontSize:13, fontWeight:600, lineHeight:1.2 },
+      tabMeta:{ fontSize:10, color:"#8a7a6a" },
+      tabClose:{ background:"rgba(255,255,255,0.08)", border:"none", color:"#8a7a6a", cursor:"pointer", width:20, height:20, borderRadius:4, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 },
+      newTabBtn:{ padding:"0 20px", background:"rgba(255,255,255,0.05)", border:"none", borderLeft:"1px solid #2e2820", color:"#c8a96e", fontSize:13, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 },
+      banner:{ background:"#1e1812", color:"#fff", padding:"28px 32px 0" },
+      bannerInner:{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:20, marginBottom:20 },
+      bannerLeft:{ flex:1 },
+      eventTag:{ fontSize:11, fontWeight:700, letterSpacing:3, marginBottom:10 },
+      eventTitle:{ fontFamily:"'Bebas Neue',sans-serif", fontSize:44, letterSpacing:1, lineHeight:1, cursor:"pointer", color:"#fff", marginBottom:10 },
+      eventMeta:{ fontSize:13, color:"#8a7a6a", display:"flex", flexWrap:"wrap", alignItems:"center" },
+      bannerStats:{ display:"flex", gap:8, flexWrap:"wrap" },
+      statPill:{ background:"rgba(255,255,255,0.06)", borderRadius:10, padding:"12px 20px", textAlign:"center", minWidth:90 },
+      statNum:{ display:"block", fontFamily:"'Bebas Neue',sans-serif", fontSize:30, lineHeight:1 },
+      statLbl:{ display:"block", fontSize:9, letterSpacing:2, color:"#8a7a6a", marginTop:2 },
+      overallBar:{ height:4, background:"rgba(255,255,255,0.1)" },
+      overallFill:{ height:"100%", transition:"width 0.8s ease" },
+      toolbar:{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 24px", background:"#fff", borderBottom:"1px solid #e8e0d0", flexWrap:"wrap", gap:10 },
+      toolbarLeft:{ display:"flex", gap:4 },
+      toolbarRight:{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" },
+      viewBtn:{ padding:"7px 14px", borderRadius:7, border:"1px solid #e8e0d0", background:"transparent", color:"#6a5f50", fontSize:13, cursor:"pointer" },
+      viewBtnActive:{ color:"#fff" },
+      sel:{ padding:"7px 10px", borderRadius:7, border:"1px solid #e8e0d0", background:"#faf7f2", color:"#2a2018", fontSize:12, cursor:"pointer", outline:"none" },
+      addBtn:{ padding:"8px 16px", borderRadius:7, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" },
+      addBtnSec:{ padding:"8px 16px", borderRadius:7, background:"#f5f0e8", border:"1px solid #e8e0d0", color:"#2a2018", fontSize:13, cursor:"pointer" },
+      peopleRow:{ display:"flex", gap:10, padding:"14px 24px", overflowX:"auto", background:"#faf7f2", borderBottom:"1px solid #e8e0d0", flexWrap:"wrap", minHeight:62, alignItems:"center" },
+      personChip:{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px 8px 8px", borderRadius:40, border:"2px solid", background:"#fff" },
+      avatar:{ width:36, height:36, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:13, flexShrink:0 },
+      chipName:{ fontSize:13, fontWeight:600 },
+      chipRole:{ fontSize:11, color:"#8a7a6a" },
+      chipEdit:{ background:"none", border:"none", color:"#8a7a6a", cursor:"pointer", fontSize:14, padding:2 },
+      timelineWrap:{ position:"relative", margin:"24px 0", background:"#fff", borderRadius:12, border:"1px solid #e8e0d0", overflow:"hidden" },
+      hourRow:{ position:"relative", height:32, borderBottom:"1px solid #f0ebe0" },
+      hourMark:{ position:"absolute", top:0, transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center" },
+      hourLabel:{ fontSize:10, color:"#8a7a6a", lineHeight:"20px", whiteSpace:"nowrap" },
+      hourLine:{ width:1, height:12, background:"#e8e0d0" },
+      taskRow:{ position:"relative", height:54, borderBottom:"1px solid #faf7f2" },
+      taskBlock:{ position:"absolute", top:4, bottom:4, borderRadius:6, padding:"4px 8px", overflow:"hidden", cursor:"pointer", minWidth:80 },
+      taskBlockTitle:{ fontSize:11, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" },
+      taskBlockMeta:{ fontSize:10, color:"#8a7a6a", display:"flex", alignItems:"center", gap:4 },
+      statusDot:{ width:6, height:6, borderRadius:"50%", display:"inline-block" },
+      checkMark:{ position:"absolute", top:4, right:6, color:"#2a8c4a", fontSize:14, fontWeight:700 },
+      boardWrap:{ display:"flex", gap:0, overflowX:"auto", padding:"0 24px 40px", minHeight:400 },
+      boardCol:{ minWidth:260, maxWidth:300, flex:"0 0 260px", background:"#fff", borderRadius:12, margin:"0 8px 0 0", border:"1px solid #e8e0d0", overflow:"hidden" },
+      boardHeader:{ padding:"16px", display:"flex", alignItems:"center", gap:10 },
+      boardAvatar:{ width:38, height:38, borderRadius:"50%", background:"rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:14, flexShrink:0 },
+      boardName:{ color:"#fff", fontWeight:700, fontSize:14 },
+      boardRole:{ color:"rgba(255,255,255,0.7)", fontSize:11 },
+      boardCount:{ marginLeft:"auto", background:"rgba(255,255,255,0.2)", color:"#fff", borderRadius:20, width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700 },
+      boardCards:{ padding:"12px", display:"flex", flexDirection:"column", gap:8, maxHeight:520, overflowY:"auto" },
+      boardCard:{ background:"#faf7f2", borderRadius:8, padding:"12px", cursor:"pointer", border:"1px solid #f0ebe0" },
+      boardCardTitle:{ fontSize:13, fontWeight:700, marginBottom:6 },
+      boardCardTime:{ fontSize:11, color:"#6a5f50", marginBottom:4 },
+      boardCardLoc:{ fontSize:11, color:"#8a7a6a", marginBottom:8 },
+      boardCardFoot:{ display:"flex", justifyContent:"space-between", alignItems:"center" },
+      emptyCol:{ fontSize:12, color:"#c5b99a", textAlign:"center", padding:20 },
+      catTag:{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:4, letterSpacing:0.5 },
+      statusPill:{ fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:20, border:"none", cursor:"pointer" },
+      table:{ width:"100%", borderCollapse:"collapse", background:"#fff", borderRadius:12, overflow:"hidden", border:"1px solid #e8e0d0" },
+      thead:{ background:"#1e1812" },
+      th:{ padding:"12px 16px", textAlign:"left", fontSize:11, fontWeight:700, letterSpacing:1, color:"#c8a96e" },
+      tr:{ cursor:"pointer" },
+      td:{ padding:"12px 16px", fontSize:13, borderBottom:"1px solid #f0ebe0", verticalAlign:"middle" },
+      timeCell:{ display:"flex", flexDirection:"column", alignItems:"center", gap:1 },
+      timeStart:{ fontWeight:700, fontSize:12 },
+      timeSep:{ fontSize:10, color:"#c5b99a" },
+      timeEnd:{ fontSize:11, color:"#8a7a6a" },
+      taskName:{ fontWeight:600, marginBottom:3 },
+      taskSpecs:{ fontSize:11, color:"#8a7a6a" },
+      personCell:{ display:"flex", alignItems:"center", gap:8 },
+      avatarSm:{ width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:700, flexShrink:0 },
+      mainArea:{ paddingTop:8 },
+      emptyState:{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 24px", textAlign:"center" },
+      emptyIcon:{ fontSize:48, marginBottom:16 },
+      emptyTitle:{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:"#8a7a6a", marginBottom:8 },
+      emptySub:{ fontSize:14, color:"#c5b99a", maxWidth:360, lineHeight:1.6 },
+      overlay:{ position:"fixed", inset:0, background:"rgba(30,24,18,0.6)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20, backdropFilter:"blur(4px)" },
+      modal:{ background:"#fff", borderRadius:16, width:"100%", maxWidth:600, boxShadow:"0 20px 60px rgba(0,0,0,0.3)", animation:"slideDown 0.2s ease", maxHeight:"90vh", overflowY:"auto" },
+      modalHead:{ padding:"24px 24px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #f0ebe0" },
+      modalTitle:{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:1 },
+      closeBtn:{ background:"none", border:"none", fontSize:18, cursor:"pointer", color:"#8a7a6a", padding:4 },
+      formGrid:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"14px 16px", padding:"20px 24px" },
+      label:{ display:"block", fontSize:11, fontWeight:700, letterSpacing:0.8, color:"#8a7a6a", marginBottom:5 },
+      input:{ width:"100%", padding:"9px 12px", borderRadius:7, border:"1px solid #e8e0d0", fontSize:13, background:"#faf7f2", color:"#2a2018", outline:"none" },
+      modalFoot:{ padding:"16px 24px", display:"flex", justifyContent:"flex-end", gap:8, borderTop:"1px solid #f0ebe0" },
+      cancelBtn:{ padding:"9px 18px", borderRadius:8, background:"#f5f0e8", border:"1px solid #e8e0d0", fontSize:13, cursor:"pointer", color:"#6a5f50" },
+      saveBtn:{ padding:"9px 22px", borderRadius:8, background:"#e8392a", border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" },
+      detailHeader:{ padding:"24px 24px 16px", position:"relative" },
+      detailCat:(c)=>({ display:"inline-block", fontSize:10, fontWeight:800, letterSpacing:1.5, color:c||"#8a7a6a", background:`${c||"#8a7a6a"}15`, padding:"3px 10px", borderRadius:4, marginBottom:8 }),
+      detailTitle:{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:0.5, paddingRight:32 },
+      detailBody:{ padding:"16px 24px", display:"flex", flexDirection:"column", gap:14 },
+      detailRow:{ display:"flex", alignItems:"flex-start", gap:12 },
+      detailIcon:{ fontSize:18, flexShrink:0, marginTop:1 },
+      detailVal:{ fontSize:14, fontWeight:600 },
+      detailSub:{ fontSize:12, color:"#8a7a6a" },
+      specsBox:{ background:"#faf7f2", borderRadius:8, padding:"14px 16px", border:"1px solid #f0ebe0" },
+      specsLabel:{ fontSize:11, fontWeight:700, letterSpacing:0.8, color:"#8a7a6a", marginBottom:8 },
+      specsText:{ fontSize:13, lineHeight:1.6, color:"#2a2018" },
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>
